@@ -260,76 +260,47 @@ class CadastroAulasEventuaisWindow(QWidget):
 
         self.professor_eventual = QComboBox()
         self.professor_efetivo = QComboBox()
-        self.data_aula = QDateEdit(calendarPopup=True)
-        self.data_aula.setDate(QDate.currentDate())
-        self.horario_entrada = QDateTimeEdit(calendarPopup=True)
-        self.horario_entrada.setDateTime(QDateTime.currentDateTime())
-        self.horario_saida = QDateTimeEdit(calendarPopup=True)
-        self.horario_saida.setDateTime(QDateTime.currentDateTime())
-        self.quantidade_aulas = QSpinBox()
-        self.observacoes = QTextEdit()
 
-        self.atualizarCombos()
+        self.data_aula = QDateEdit()
+        self.data_aula.setDate(QDate.currentDate())
 
         self.layout.addRow("Professor Eventual:", self.professor_eventual)
         self.layout.addRow("Professor Efetivo:", self.professor_efetivo)
         self.layout.addRow("Data da Aula:", self.data_aula)
-        self.layout.addRow("Horário de Entrada:", self.horario_entrada)
-        self.layout.addRow("Horário de Saída:", self.horario_saida)
-        self.layout.addRow("Quantidade de Aulas:", self.quantidade_aulas)
-        self.layout.addRow("Observações:", self.observacoes)
 
         self.btnSalvar = QPushButton("Salvar")
         self.btnSalvar.clicked.connect(self.salvar)
         self.layout.addRow("", self.btnSalvar)
 
         self.setLayout(self.layout)
+        self.carregarProfessores()
 
-    def atualizarCombos(self):
-        try:
-            eventuais_df = load_from_firebase('eventuais')
-            efetivos_df = load_from_firebase('efetivos')
+    def carregarProfessores(self):
+        # Carregar professores eventuais e efetivos para preencher o combo box
+        eventuais_df = load_from_firebase('eventuais')
+        efetivos_df = load_from_firebase('efetivos')
 
-            self.professor_eventual.clear()
-            self.professor_efetivo.clear()
-
-            for _, professor in eventuais_df.iterrows():
-                self.professor_eventual.addItem(professor['Nome'], userData=professor['CPF'])
-
-            for _, professor in efetivos_df.iterrows():
-                self.professor_efetivo.addItem(professor['Nome'], userData=professor['CPF'])
-        except Exception as e:
-            print(f"Erro ao carregar professores: {e}")
+        self.professor_eventual.addItems(eventuais_df['Nome'].tolist())
+        self.professor_efetivo.addItems(efetivos_df['Nome'].tolist())
 
     def salvar(self):
         try:
-            professor_eventual_id = self.professor_eventual.currentData()
-            professor_efetivo_id = self.professor_efetivo.currentData()
-            data_aula = self.data_aula.date().toString("yyyy-MM-dd")
-            horario_entrada = self.horario_entrada.dateTime().toString("yyyy-MM-dd HH:mm:ss")
-            horario_saida = self.horario_saida.dateTime().toString("yyyy-MM-dd HH:mm:ss")
-            quantidade_aulas = self.quantidade_aulas.value()
-            observacoes = self.observacoes.toPlainText()
+            eventual = self.professor_eventual.currentText()
+            efetivo = self.professor_efetivo.currentText()
+            data_aula = self.data_aula.date().toString("dd/MM/yyyy")
 
-            # Carregar dados existentes
-            df = load_from_firebase('aulas_eventuais')
+            aulas_df = load_from_firebase('aulas_eventuais')
 
-            # Adicionar nova entrada
             nova_linha = pd.DataFrame([{
-                'CPF Professor Eventual': professor_eventual_id,    
-                'CPF Professor Efetivo': professor_efetivo_id,
-                'Data da Aula': data_aula,
-                'Horário de Entrada': horario_entrada,
-                'Horário de Saída': horario_saida,
-                'Quantidade de Aulas': quantidade_aulas,
-                'Observações': observacoes
+                'Nome Professor Eventual': eventual,
+                'Nome Professor Efetivo': efetivo,
+                'Data da Aula': data_aula
             }])
 
-            df = pd.concat([df, nova_linha], ignore_index=True)
-
-            # Salvar no Firebase
-            save_to_firebase('aulas_eventuais', df)
+            aulas_df = pd.concat([aulas_df, nova_linha], ignore_index=True)
+            save_to_firebase('aulas_eventuais', aulas_df)
             self.close()
+
         except Exception as e:
             print(f"Erro ao salvar os dados: {e}")
 
@@ -338,28 +309,24 @@ class ListarAulasEventuaisWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Listar Aulas Eventuais")
         self.layout = QVBoxLayout()
-
-        # Campo de pesquisa para filtrar por professor ou data
-        self.searchField = QLineEdit()
-        self.searchField.setPlaceholderText("Pesquisar por Professor ou Data (YYYY-MM-DD)")
-        self.searchField.textChanged.connect(self.filtrarDados)  # Conecta a função de filtragem
-        self.layout.addWidget(self.searchField)
-
         self.table = QTableWidget()
         self.layout.addWidget(self.table)
 
-        # Botão para excluir o item selecionado
-        self.btnExcluir = QPushButton("Excluir Selecionado")
-        self.btnExcluir.clicked.connect(self.excluirSelecionado)
-        self.layout.addWidget(self.btnExcluir)
+        # Campo de pesquisa e botão
+        self.search_field = QLineEdit()
+        self.search_field.setPlaceholderText("Pesquisar...")
+        self.search_button = QPushButton("Pesquisar")
+        self.search_button.clicked.connect(self.pesquisar)
+
+        self.layout.addWidget(self.search_field)
+        self.layout.addWidget(self.search_button)
 
         self.setLayout(self.layout)
-
-        self.carregarDados()  # Carregar dados da Firebase
+        self.carregarDados()
 
     def carregarDados(self):
         try:
-            # Carregar os dados de aulas eventuais, professores eventuais e efetivos
+            # Carregar dados
             aulas_df = load_from_firebase('aulas_eventuais')
             eventuais_df = load_from_firebase('eventuais')
             efetivos_df = load_from_firebase('efetivos')
@@ -376,39 +343,17 @@ class ListarAulasEventuaisWindow(QWidget):
             aulas_df['Nome Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nome_map)
             aulas_df['NIF Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nif_map)
 
-            # Remover a coluna 'CPF Professor Efetivo', já que não será exibida
-            self.aulas_df = aulas_df.drop(columns=['CPF Professor Efetivo'])
+            # Definir o número de linhas e colunas na tabela
+            self.table.setRowCount(aulas_df.shape[0])
+            self.table.setColumnCount(aulas_df.shape[1])
+            self.table.setHorizontalHeaderLabels(aulas_df.columns)
 
-            # Exibir todos os dados inicialmente
-            self.exibirDados(self.aulas_df)
+            for i, row in aulas_df.iterrows():
+                for j, val in enumerate(row):
+                    self.table.setItem(i, j, QTableWidgetItem(str(val)))
 
         except Exception as e:
             print(f"Erro ao carregar os dados: {e}")
-
-    def exibirDados(self, df):
-        self.table.setRowCount(df.shape[0])
-        self.table.setColumnCount(df.shape[1])
-        self.table.setHorizontalHeaderLabels(df.columns)
-
-        for i, row in df.iterrows():
-            for j, val in enumerate(row):
-                self.table.setItem(i, j, QTableWidgetItem(str(val)))
-
-    def filtrarDados(self):
-        texto_pesquisa = self.searchField.text().lower()
-
-        # Filtrar por nome do professor (eventual ou efetivo) ou por data da aula
-        if texto_pesquisa:
-            df_filtrado = self.aulas_df[
-                (self.aulas_df['Nome Professor Eventual'].str.lower().str.contains(texto_pesquisa)) |
-                (self.aulas_df['Nome Professor Efetivo'].str.lower().str.contains(texto_pesquisa)) |
-                (self.aulas_df['Data da Aula'].str.contains(texto_pesquisa))
-            ]
-        else:
-            df_filtrado = self.aulas_df
-
-        # Atualizar a tabela com os dados filtrados
-        self.exibirDados(df_filtrado)
 
     def excluirSelecionado(self):
         try:
@@ -421,18 +366,56 @@ class ListarAulasEventuaisWindow(QWidget):
         except Exception as e:
             print(f"Erro ao excluir os dados: {e}")
 
-    
-class GraficoWindow(QWidget):
-    def __init__(self, tipo):
-        super().__init__()
-        self.setWindowTitle(f"Gerar Gráfico {tipo.capitalize()}")
-        # Implementar a lógica de gráficos aqui
+    def pesquisar(self):
+        query = self.search_field.text().strip()  # Remover espaços extras
+        self.filtrarDados(query)
 
-class RelatorioDiarioWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Gerar Relatório Diário")
-        # Implementar a lógica de relatórios diários aqui
+    def filtrarDados(self, query):
+        try:
+            # Carregar todos os dados
+            aulas_df = load_from_firebase('aulas_eventuais')
+            eventuais_df = load_from_firebase('eventuais')
+            efetivos_df = load_from_firebase('efetivos')
+
+            # Mapeamento de CPF para Nome (professor eventual)
+            eventuais_df['Nome'] = eventuais_df['Nome'].str.strip()  # Remover espaços extras
+            eventuais_map = dict(zip(eventuais_df['CPF'], eventuais_df['Nome']))
+
+            # Mapeamento de CPF para Nome e NIF (professor efetivo)
+            efetivos_df['Nome'] = efetivos_df['Nome'].str.strip()  # Remover espaços extras
+            efetivos_df['NIF'] = efetivos_df['NIF'].str.strip()  # Remover espaços extras
+            efetivos_nome_map = dict(zip(efetivos_df['CPF'], efetivos_df['Nome']))
+            efetivos_nif_map = dict(zip(efetivos_df['CPF'], efetivos_df['NIF']))
+
+            # Adicionar colunas de nome e NIF dos professores ao DataFrame de aulas eventuais
+            aulas_df['Nome Professor Eventual'] = aulas_df['CPF Professor Eventual'].map(eventuais_map).str.strip()
+            aulas_df['Nome Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nome_map).str.strip()
+            aulas_df['NIF Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nif_map).str.strip()
+
+            # Aplicar filtro baseado no campo de pesquisa com correspondência exata
+            if query:
+                query = query.strip().lower()  # Remover espaços extras e garantir que tudo esteja em minúsculas
+                aulas_df = aulas_df[
+                    (aulas_df['Nome Professor Eventual'].str.lower().str.contains(f'^{query}$')) |  # Comparação exata
+                    (aulas_df['Nome Professor Efetivo'].str.lower().str.contains(f'^{query}$')) |  # Comparação exata
+                    (aulas_df['Data da Aula'].str.contains(query, case=False))  # Permitir busca parcial na data
+                ]
+
+            # Atualizar a tabela com os dados filtrados
+            self.table.setRowCount(aulas_df.shape[0])
+            self.table.setColumnCount(aulas_df.shape[1])
+            self.table.setHorizontalHeaderLabels(aulas_df.columns)
+
+            for i, row in aulas_df.iterrows():
+                for j, val in enumerate(row):
+                    self.table.setItem(i, j, QTableWidgetItem(str(val)))
+
+        except Exception as e:
+            print(f"Erro ao filtrar os dados: {e}")
+
+
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
