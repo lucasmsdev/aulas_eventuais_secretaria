@@ -212,7 +212,7 @@ class CadastroApp(QtWidgets.QWidget):
         aulas_eventuais_ref.push({
             'prof_eventual': prof_eventual,
             'prof_efetivo': prof_efetivo,
-            'dia_aula': dia_aula,  # Salvar o dia da aula
+            'dia_aula': dia_aula,
             'horario_entrada': horario_entrada,
             'horario_saida': horario_saida,
             'qtd_aulas': qtd_aulas,
@@ -224,8 +224,7 @@ class CadastroApp(QtWidgets.QWidget):
     def listar_eventuais(self):
         self.window_listar_eventuais = QtWidgets.QDialog()
         self.window_listar_eventuais.setWindowTitle("Listagem de Professores Eventuais")
-        self.window_listar_eventuais.setMinimumSize(800, 600)  # Tamanho mínimo
-        self.window_listar_eventuais.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
+        self.window_listar_eventuais.setMinimumSize(600, 400)
 
         layout = QtWidgets.QVBoxLayout()
         self.table_eventuais = QtWidgets.QTableWidget()
@@ -233,26 +232,7 @@ class CadastroApp(QtWidgets.QWidget):
         self.table_eventuais.setHorizontalHeaderLabels(['Nome', 'CPF', 'Conta', 'Agência', 'Banco'])
         layout.addWidget(self.table_eventuais)
 
-        eventuais = eventuais_ref.get()  # Pega todos os eventuais do Firebase
-        self.table_eventuais.setRowCount(0)
-
-        if isinstance(eventuais, dict):
-            for key, event in eventuais.items():
-                row_position = self.table_eventuais.rowCount()
-                self.table_eventuais.insertRow(row_position)
-                nome = event.get('nome', 'Nome não disponível')
-                cpf = event.get('cpf', 'CPF não disponível')
-                conta = event.get('conta', 'Conta não disponível')
-                agencia = event.get('agencia', 'Agência não disponível')
-                banco = event.get('banco', 'Banco não disponível')
-
-                self.table_eventuais.setItem(row_position, 0, QtWidgets.QTableWidgetItem(nome))
-                self.table_eventuais.setItem(row_position, 1, QtWidgets.QTableWidgetItem(cpf))
-                self.table_eventuais.setItem(row_position, 2, QtWidgets.QTableWidgetItem(conta))
-                self.table_eventuais.setItem(row_position, 3, QtWidgets.QTableWidgetItem(agencia))
-                self.table_eventuais.setItem(row_position, 4, QtWidgets.QTableWidgetItem(banco))
-        else:
-            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+        self.carregar_eventuais_lista()
 
         btn_fechar = QtWidgets.QPushButton('Fechar')
         btn_fechar.clicked.connect(self.window_listar_eventuais.close)
@@ -261,36 +241,35 @@ class CadastroApp(QtWidgets.QWidget):
         self.window_listar_eventuais.setLayout(layout)
         self.window_listar_eventuais.exec_()
 
+    def carregar_eventuais_lista(self):
+        """Carrega os professores eventuais na tabela."""
+        eventuais = eventuais_ref.get()
+        self.table_eventuais.setRowCount(0)
+
+        if isinstance(eventuais, dict):
+            for key, eventual in eventuais.items():
+                row_position = self.table_eventuais.rowCount()
+                self.table_eventuais.insertRow(row_position)
+                self.table_eventuais.setItem(row_position, 0, QtWidgets.QTableWidgetItem(eventual['nome']))
+                self.table_eventuais.setItem(row_position, 1, QtWidgets.QTableWidgetItem(eventual['cpf']))
+                self.table_eventuais.setItem(row_position, 2, QtWidgets.QTableWidgetItem(eventual['conta']))
+                self.table_eventuais.setItem(row_position, 3, QtWidgets.QTableWidgetItem(eventual['agencia']))
+                self.table_eventuais.setItem(row_position, 4, QtWidgets.QTableWidgetItem(eventual['banco']))
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
     def listar_efetivos(self):
         self.window_listar_efetivos = QtWidgets.QDialog()
         self.window_listar_efetivos.setWindowTitle("Listagem de Professores Efetivos")
-        self.window_listar_efetivos.setMinimumSize(800, 600)  # Tamanho mínimo
-        self.window_listar_efetivos.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
+        self.window_listar_efetivos.setMinimumSize(600, 400)
 
         layout = QtWidgets.QVBoxLayout()
         self.table_efetivos = QtWidgets.QTableWidget()
         self.table_efetivos.setColumnCount(4)
-        self.table_efetivos.setHorizontalHeaderLabels(['Nome', 'NIF', 'CPF', 'Especialidade'])
+        self.table_efetivos.setHorizontalHeaderLabels(['Nome', 'CPF', 'NIF', 'Especialidade'])
         layout.addWidget(self.table_efetivos)
 
-        efetivos = efetivos_ref.get()  # Pega todos os efetivos do Firebase
-        self.table_efetivos.setRowCount(0)
-
-        if isinstance(efetivos, dict):
-            for key, efetivo in efetivos.items():
-                row_position = self.table_efetivos.rowCount()
-                self.table_efetivos.insertRow(row_position)
-                nome = efetivo.get('nome', 'Nome não disponível')
-                cpf = efetivo.get('cpf', 'CPF não disponível')
-                nif = efetivo.get('nif', 'NIF não disponível')
-                especialidade = efetivo.get('especialidade', 'Especialidade não disponível')
-
-                self.table_efetivos.setItem(row_position, 0, QtWidgets.QTableWidgetItem(nome))
-                self.table_efetivos.setItem(row_position, 1, QtWidgets.QTableWidgetItem(nif))  # Incluindo NIF
-                self.table_efetivos.setItem(row_position, 2, QtWidgets.QTableWidgetItem(cpf))
-                self.table_efetivos.setItem(row_position, 3, QtWidgets.QTableWidgetItem(especialidade))
-        else:
-            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+        self.carregar_efetivos_lista()
 
         btn_fechar = QtWidgets.QPushButton('Fechar')
         btn_fechar.clicked.connect(self.window_listar_efetivos.close)
@@ -299,6 +278,22 @@ class CadastroApp(QtWidgets.QWidget):
         self.window_listar_efetivos.setLayout(layout)
         self.window_listar_efetivos.exec_()
 
+    def carregar_efetivos_lista(self):
+        """Carrega os professores efetivos na tabela."""
+        efetivos = efetivos_ref.get()
+        self.table_efetivos.setRowCount(0)
+
+        if isinstance(efetivos, dict):
+            for key, efetivo in efetivos.items():
+                row_position = self.table_efetivos.rowCount()
+                self.table_efetivos.insertRow(row_position)
+                self.table_efetivos.setItem(row_position, 0, QtWidgets.QTableWidgetItem(efetivo['nome']))
+                self.table_efetivos.setItem(row_position, 1, QtWidgets.QTableWidgetItem(efetivo['cpf']))
+                self.table_efetivos.setItem(row_position, 2, QtWidgets.QTableWidgetItem(efetivo['nif']))
+                self.table_efetivos.setItem(row_position, 3, QtWidgets.QTableWidgetItem(efetivo['especialidade']))
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
     def listar_aulas_eventuais(self):
         self.window_listar_aulas = QtWidgets.QDialog()
         self.window_listar_aulas.setWindowTitle("Listagem de Aulas Eventuais")
@@ -306,38 +301,19 @@ class CadastroApp(QtWidgets.QWidget):
         self.window_listar_aulas.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
 
         layout = QtWidgets.QVBoxLayout()
+
+        # Adiciona a barra de pesquisa
+        self.search_bar = QtWidgets.QLineEdit()
+        self.search_bar.setPlaceholderText("Pesquisar por nome do professor...")
+        self.search_bar.textChanged.connect(self.filtrar_aulas)  # Conecta a mudança de texto à função de filtro
+        layout.addWidget(self.search_bar)
+
         self.table_aulas = QtWidgets.QTableWidget()
         self.table_aulas.setColumnCount(7)  # Adicionar coluna para o NIF
         self.table_aulas.setHorizontalHeaderLabels(['Professor Eventual', 'NIF Efetivo', 'Professor Efetivo', 'Dia da Aula', 'Horário Entrada', 'Horário Saída', 'Observações'])
         layout.addWidget(self.table_aulas)
 
-        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
-        self.table_aulas.setRowCount(0)
-
-        if isinstance(aulas, dict):
-            for key, aula in aulas.items():
-                row_position = self.table_aulas.rowCount()
-                self.table_aulas.insertRow(row_position)
-                prof_eventual = aula.get('prof_eventual', 'Professor eventual não disponível')
-                prof_efetivo = aula.get('prof_efetivo', 'Professor efetivo não disponível')
-                dia_aula = aula.get('dia_aula', 'Dia da aula não disponível')
-                horario_entrada = aula.get('horario_entrada', 'Horário de entrada não disponível')
-                horario_saida = aula.get('horario_saida', 'Horário de saída não disponível')
-                qtd_aulas = aula.get('qtd_aulas', 'Quantidade não disponível')
-                observacoes = aula.get('observacoes', 'Observações não disponíveis')
-
-                # Obter o NIF do professor efetivo
-                nif_efetivo = self.get_nif_professor_efetivo(prof_efetivo)
-
-                self.table_aulas.setItem(row_position, 0, QtWidgets.QTableWidgetItem(prof_eventual))
-                self.table_aulas.setItem(row_position, 1, QtWidgets.QTableWidgetItem(nif_efetivo))  # Exibir NIF
-                self.table_aulas.setItem(row_position, 2, QtWidgets.QTableWidgetItem(prof_efetivo))
-                self.table_aulas.setItem(row_position, 3, QtWidgets.QTableWidgetItem(dia_aula))
-                self.table_aulas.setItem(row_position, 4, QtWidgets.QTableWidgetItem(horario_entrada))
-                self.table_aulas.setItem(row_position, 5, QtWidgets.QTableWidgetItem(horario_saida))
-                self.table_aulas.setItem(row_position, 6, QtWidgets.QTableWidgetItem(observacoes))
-        else:
-            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+        self.carregar_aulas_eventuais()  # Carrega inicialmente as aulas
 
         btn_fechar = QtWidgets.QPushButton('Fechar')
         btn_fechar.clicked.connect(self.window_listar_aulas.close)
@@ -346,17 +322,65 @@ class CadastroApp(QtWidgets.QWidget):
         self.window_listar_aulas.setLayout(layout)
         self.window_listar_aulas.exec_()
 
+    def carregar_aulas_eventuais(self):
+        """Carrega as aulas eventuais do Firebase na tabela."""
+        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
+        self.table_aulas.setRowCount(0)  # Limpa a tabela
+
+        if isinstance(aulas, dict):
+            for key, aula in aulas.items():
+                self.adicionar_linha_aula(aula)
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
+    def adicionar_linha_aula(self, aula):
+        """Adiciona uma linha na tabela de aulas."""
+        row_position = self.table_aulas.rowCount()
+        self.table_aulas.insertRow(row_position)
+        prof_eventual = aula.get('prof_eventual', 'Professor eventual não disponível')
+        prof_efetivo = aula.get('prof_efetivo', 'Professor efetivo não disponível')
+        dia_aula = aula.get('dia_aula', 'Dia da aula não disponível')
+        horario_entrada = aula.get('horario_entrada', 'Horário de entrada não disponível')
+        horario_saida = aula.get('horario_saida', 'Horário de saída não disponível')
+        observacoes = aula.get('observacoes', 'Observações não disponíveis')
+
+        # Obter o NIF do professor efetivo
+        nif_efetivo = self.get_nif_professor_efetivo(prof_efetivo)
+
+        self.table_aulas.setItem(row_position, 0, QtWidgets.QTableWidgetItem(prof_eventual))
+        self.table_aulas.setItem(row_position, 1, QtWidgets.QTableWidgetItem(nif_efetivo))  # Exibir NIF
+        self.table_aulas.setItem(row_position, 2, QtWidgets.QTableWidgetItem(prof_efetivo))
+        self.table_aulas.setItem(row_position, 3, QtWidgets.QTableWidgetItem(dia_aula))
+        self.table_aulas.setItem(row_position, 4, QtWidgets.QTableWidgetItem(horario_entrada))
+        self.table_aulas.setItem(row_position, 5, QtWidgets.QTableWidgetItem(horario_saida))
+        self.table_aulas.setItem(row_position, 6, QtWidgets.QTableWidgetItem(observacoes))
+
+    def filtrar_aulas(self):
+        """Filtra as aulas baseando-se no texto da barra de pesquisa."""
+        search_text = self.search_bar.text().lower()
+        self.table_aulas.setRowCount(0)  # Limpa a tabela antes de filtrar
+
+        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
+
+        if isinstance(aulas, dict):
+            for key, aula in aulas.items():
+                # Verifica se o nome do professor eventual ou efetivo contém o texto da pesquisa
+                if search_text in aula.get('prof_eventual', '').lower() or search_text in aula.get('prof_efetivo', '').lower():
+                    self.adicionar_linha_aula(aula)
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
     def get_nif_professor_efetivo(self, nome_prof_efetivo):
-        """Retorna o NIF do professor efetivo dado seu nome."""
+        """Obtém o NIF do professor efetivo baseado no seu nome."""
         efetivos = efetivos_ref.get()
         if isinstance(efetivos, dict):
-            for efetivo in efetivos.values():
+            for key, efetivo in efetivos.items():
                 if efetivo['nome'] == nome_prof_efetivo:
                     return efetivo.get('nif', 'NIF não disponível')
         return 'NIF não encontrado'
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    window = CadastroApp()
-    window.show()
+    ex = CadastroApp()
+    ex.show()
     sys.exit(app.exec_())
