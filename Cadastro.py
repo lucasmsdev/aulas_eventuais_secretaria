@@ -1,424 +1,362 @@
 import sys
-import pandas as pd
+from PyQt5 import QtWidgets
+from PyQt5.QtCore import Qt
 import firebase_admin
 from firebase_admin import credentials, db
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
-    QLineEdit, QFormLayout, QComboBox, QDateTimeEdit, QTextEdit, QSpinBox,
-    QGroupBox, QTableWidget, QTableWidgetItem, QLabel, QDateEdit, QMessageBox
-)
-from PyQt5.QtCore import QDateTime, QDate
 
-# Configuração do Firebase
+# Inicializar Firebase
 cred = credentials.Certificate('aulaseventuais-966ef-firebase-adminsdk-swryz-f9bcd4c14a.json')
 firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://aulaseventuais-966ef-default-rtdb.firebaseio.com/'
 })
 
-# Função para carregar os dados do Firebase
-def load_from_firebase(path):
-    ref = db.reference(path)
-    data = ref.get()
-    if data is None:
-        return pd.DataFrame()
-    
-    # Verifica se os dados são uma lista
-    if isinstance(data, list):
-        # Converte a lista em DataFrame
-        return pd.DataFrame(data)
-    elif isinstance(data, dict):
-        # Converte o dicionário em DataFrame
-        return pd.DataFrame.from_dict(data, orient='index')
-    else:
-        return pd.DataFrame()
+# Referências ao banco de dados
+eventuais_ref = db.reference('eventuais')
+efetivos_ref = db.reference('efetivos')
+aulas_eventuais_ref = db.reference('aulas_eventuais')
 
-# Função para salvar os dados no Firebase
-def save_to_firebase(path, df):
-    ref = db.reference(path)
-    ref.set(df.to_dict(orient='index'))
-
-class MainWindow(QMainWindow):
+class CadastroApp(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Dashboard Eventuais")
-        self.setGeometry(100, 100, 600, 400)
-
-        layout = QVBoxLayout()
-
-        # Botões de Cadastro
-        self.add_button(layout, "Cadastro de Eventuais", self.cadastroEventuais)
-        self.add_button(layout, "Cadastro de Professores Efetivos", self.cadastroEfetivos)
-        self.add_button(layout, "Cadastro de Aulas Eventuais", self.cadastroAulasEventuais)
-
-        # Botões de Listagem
-        self.add_button(layout, "Listar Professores Eventuais", self.listarEventuais)
-        self.add_button(layout, "Listar Professores Efetivos", self.listarEfetivos)
-        self.add_button(layout, "Listar Aulas Eventuais", self.listarAulas)
-
-        # Grupo para Relatórios e Gráficos
-        groupbox = QGroupBox("Relatórios e Gráficos")
-        groupbox_layout = QVBoxLayout()
-
-        self.add_button(groupbox_layout, "Gerar Gráfico Mensal (EM BREVE)", self.gerarGraficoMensal)
-        self.add_button(groupbox_layout, "Gerar Gráfico Anual (EM BREVE)", self.gerarGraficoAnual)
-        self.add_button(groupbox_layout, "Gerar Relatório Diário (EM BREVE)", self.gerarRelatorioDiario)
-
-        groupbox.setLayout(groupbox_layout)
-        layout.addWidget(groupbox)
-
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
-
-    def add_button(self, layout, text, func):
-        button = QPushButton(text)
-        button.clicked.connect(func)
-        layout.addWidget(button)
-
-    def cadastroEventuais(self):
-        self.formWindow = CadastroWindow("Cadastro de Eventuais", 'eventuais')
-        self.formWindow.show()
-
-    def cadastroEfetivos(self):
-        self.formWindow = CadastroEfetivosWindow()
-        self.formWindow.show()
-
-    def cadastroAulasEventuais(self):
-        self.formWindow = CadastroAulasEventuaisWindow()
-        self.formWindow.show()
-
-    def listarEventuais(self):
-        self.listWindow = ListarProfessoresWindow("Listar Professores Eventuais", 'eventuais')
-        self.listWindow.show()
-
-    def listarEfetivos(self):
-        self.listWindow = ListarProfessoresWindow("Listar Professores Efetivos", 'efetivos')
-        self.listWindow.show()
-
-    def listarAulas(self):
-        self.listWindow = ListarAulasEventuaisWindow()
-        self.listWindow.show()
-
-    def gerarGraficoMensal(self):
-        self.graficoMensalWindow = GraficoWindow('mensal')
-        self.graficoMensalWindow.show()
-
-    def gerarGraficoAnual(self):
-        self.graficoAnualWindow = GraficoWindow('anual')
-        self.graficoAnualWindow.show()
-
-    def gerarRelatorioDiario(self):
-        self.relatorioDiarioWindow = RelatorioDiarioWindow()
-        self.relatorioDiarioWindow.show()
-
-class CadastroWindow(QWidget):
-    def __init__(self, title, path):
-        super().__init__()
-        self.setWindowTitle(title)
-        self.path = path
-        self.layout = QFormLayout()
-
-        self.nome = QLineEdit()
-        self.cpf = QLineEdit()
-        self.conta = QLineEdit()
-        self.agencia = QLineEdit()
-        self.banco = QLineEdit()
-
-        self.layout.addRow("Nome:", self.nome)
-        self.layout.addRow("CPF:", self.cpf)
-        self.layout.addRow("Conta:", self.conta)
-        self.layout.addRow("Agência:", self.agencia)
-        self.layout.addRow("Banco:", self.banco)
-
-        self.btnSalvar = QPushButton("Salvar")
-        self.btnSalvar.clicked.connect(self.salvar)
-        self.layout.addRow("", self.btnSalvar)
-
-        self.setLayout(self.layout)
-
-    def salvar(self):
-        try:
-            nome = self.nome.text()
-            cpf = self.cpf.text()
-            conta = self.conta.text()
-            agencia = self.agencia.text()
-            banco = self.banco.text()
-
-            # Carregar dados existentes
-            df = load_from_firebase(self.path)
-
-            # Adicionar nova entrada
-            nova_linha = pd.DataFrame([{
-                'Nome': nome,
-                'CPF': cpf,
-                'Conta': conta,
-                'Agência': agencia,
-                'Banco': banco
-            }])
-
-            df = pd.concat([df, nova_linha], ignore_index=True)
-
-            # Salvar no Firebase
-            save_to_firebase(self.path, df)
-            self.close()
-        except Exception as e:
-            print(f"Erro ao salvar os dados: {e}")
-
-class CadastroEfetivosWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Cadastro de Professores Efetivos")
-        self.layout = QFormLayout()
-
-        self.nome = QLineEdit()
-        self.cpf = QLineEdit()
-        self.nif = QLineEdit()
-
-        self.layout.addRow("Nome:", self.nome)
-        self.layout.addRow("CPF:", self.cpf)
-        self.layout.addRow("NIF:", self.nif)
-
-        self.btnSalvar = QPushButton("Salvar")
-        self.btnSalvar.clicked.connect(self.salvar)
-        self.layout.addRow("", self.btnSalvar)
-
-        self.setLayout(self.layout)
-
-    def salvar(self):
-        try:
-            nome = self.nome.text()
-            cpf = self.cpf.text()
-            nif = self.nif.text()
-
-            # Carregar dados existentes
-            df = load_from_firebase('efetivos')
-
-            # Adicionar nova entrada
-            nova_linha = pd.DataFrame([{
-                'Nome': nome,
-                'CPF': cpf,
-                'NIF': nif
-            }])
-
-            df = pd.concat([df, nova_linha], ignore_index=True)
-
-            # Salvar no Firebase
-            save_to_firebase('efetivos', df)
-            self.close()
-        except Exception as e:
-            print(f"Erro ao salvar os dados: {e}")
-
-class ListarProfessoresWindow(QWidget):
-    def __init__(self, title, path):
-        super().__init__()
-        self.setWindowTitle(title)
-        self.path = path
-        self.layout = QVBoxLayout()
-        self.table = QTableWidget()
-
-        self.layout.addWidget(self.table)
-        
-        # Botão para excluir o item selecionado
-        self.btnExcluir = QPushButton("Excluir Selecionado")
-        self.btnExcluir.clicked.connect(self.excluirSelecionado)
-        self.layout.addWidget(self.btnExcluir)
-
-        self.setLayout(self.layout)
-
-        self.carregarDados()
-
-    def carregarDados(self):
-        try:
-            df = load_from_firebase(self.path)
-            self.table.setRowCount(df.shape[0])
-            self.table.setColumnCount(df.shape[1])
-            self.table.setHorizontalHeaderLabels(df.columns)
-
-            for i, row in df.iterrows():
-                for j, val in enumerate(row):
-                    self.table.setItem(i, j, QTableWidgetItem(str(val)))
-
-        except Exception as e:
-            print(f"Erro ao carregar os dados: {e}")
-
-    def excluirSelecionado(self):
-        try:
-            selected_row = self.table.currentRow()
-            if selected_row >= 0:
-                df = load_from_firebase(self.path)
-                df = df.drop(df.index[selected_row]).reset_index(drop=True)
-                save_to_firebase(self.path, df)
-                self.carregarDados()
-        except Exception as e:
-            print(f"Erro ao excluir os dados: {e}")
-
-class CadastroAulasEventuaisWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Cadastro de Aulas Eventuais")
-        self.layout = QFormLayout()
-
-        self.professor_eventual = QComboBox()
-        self.professor_efetivo = QComboBox()
-
-        self.data_aula = QDateEdit()
-        self.data_aula.setDate(QDate.currentDate())
-
-        self.layout.addRow("Professor Eventual:", self.professor_eventual)
-        self.layout.addRow("Professor Efetivo:", self.professor_efetivo)
-        self.layout.addRow("Data da Aula:", self.data_aula)
-
-        self.btnSalvar = QPushButton("Salvar")
-        self.btnSalvar.clicked.connect(self.salvar)
-        self.layout.addRow("", self.btnSalvar)
-
-        self.setLayout(self.layout)
-        self.carregarProfessores()
-
-    def carregarProfessores(self):
-        # Carregar professores eventuais e efetivos para preencher o combo box
-        eventuais_df = load_from_firebase('eventuais')
-        efetivos_df = load_from_firebase('efetivos')
-
-        self.professor_eventual.addItems(eventuais_df['Nome'].tolist())
-        self.professor_efetivo.addItems(efetivos_df['Nome'].tolist())
-
-    def salvar(self):
-        try:
-            eventual = self.professor_eventual.currentText()
-            efetivo = self.professor_efetivo.currentText()
-            data_aula = self.data_aula.date().toString("dd/MM/yyyy")
-
-            aulas_df = load_from_firebase('aulas_eventuais')
-
-            nova_linha = pd.DataFrame([{
-                'Nome Professor Eventual': eventual,
-                'Nome Professor Efetivo': efetivo,
-                'Data da Aula': data_aula
-            }])
-
-            aulas_df = pd.concat([aulas_df, nova_linha], ignore_index=True)
-            save_to_firebase('aulas_eventuais', aulas_df)
-            self.close()
-
-        except Exception as e:
-            print(f"Erro ao salvar os dados: {e}")
-
-class ListarAulasEventuaisWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Listar Aulas Eventuais")
-        self.layout = QVBoxLayout()
-        self.table = QTableWidget()
-        self.layout.addWidget(self.table)
-
-        # Campo de pesquisa e botão
-        self.search_field = QLineEdit()
-        self.search_field.setPlaceholderText("Pesquisar...")
-        self.search_button = QPushButton("Pesquisar")
-        self.search_button.clicked.connect(self.pesquisar)
-
-        self.layout.addWidget(self.search_field)
-        self.layout.addWidget(self.search_button)
-
-        self.setLayout(self.layout)
-        self.carregarDados()
-
-    def carregarDados(self):
-        try:
-            # Carregar dados
-            aulas_df = load_from_firebase('aulas_eventuais')
-            eventuais_df = load_from_firebase('eventuais')
-            efetivos_df = load_from_firebase('efetivos')
-
-            # Mapeamento de CPF para Nome (professor eventual)
-            eventuais_map = dict(zip(eventuais_df['CPF'], eventuais_df['Nome']))
-
-            # Mapeamento de CPF para Nome e NIF (professor efetivo)
-            efetivos_nome_map = dict(zip(efetivos_df['CPF'], efetivos_df['Nome']))
-            efetivos_nif_map = dict(zip(efetivos_df['CPF'], efetivos_df['NIF']))
-
-            # Adicionar colunas de nome e NIF dos professores ao DataFrame de aulas eventuais
-            aulas_df['Nome Professor Eventual'] = aulas_df['CPF Professor Eventual'].map(eventuais_map)
-            aulas_df['Nome Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nome_map)
-            aulas_df['NIF Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nif_map)
-
-            # Definir o número de linhas e colunas na tabela
-            self.table.setRowCount(aulas_df.shape[0])
-            self.table.setColumnCount(aulas_df.shape[1])
-            self.table.setHorizontalHeaderLabels(aulas_df.columns)
-
-            for i, row in aulas_df.iterrows():
-                for j, val in enumerate(row):
-                    self.table.setItem(i, j, QTableWidgetItem(str(val)))
-
-        except Exception as e:
-            print(f"Erro ao carregar os dados: {e}")
-
-    def excluirSelecionado(self):
-        try:
-            selected_row = self.table.currentRow()
-            if selected_row >= 0:
-                df = load_from_firebase('aulas_eventuais')
-                df = df.drop(df.index[selected_row]).reset_index(drop=True)
-                save_to_firebase('aulas_eventuais', df)
-                self.carregarDados()
-        except Exception as e:
-            print(f"Erro ao excluir os dados: {e}")
-
-    def pesquisar(self):
-        query = self.search_field.text().strip()  # Remover espaços extras
-        self.filtrarDados(query)
-
-    def filtrarDados(self, query):
-        try:
-            # Carregar todos os dados
-            aulas_df = load_from_firebase('aulas_eventuais')
-            eventuais_df = load_from_firebase('eventuais')
-            efetivos_df = load_from_firebase('efetivos')
-
-            # Mapeamento de CPF para Nome (professor eventual)
-            eventuais_df['Nome'] = eventuais_df['Nome'].str.strip()  # Remover espaços extras
-            eventuais_map = dict(zip(eventuais_df['CPF'], eventuais_df['Nome']))
-
-            # Mapeamento de CPF para Nome e NIF (professor efetivo)
-            efetivos_df['Nome'] = efetivos_df['Nome'].str.strip()  # Remover espaços extras
-            efetivos_df['NIF'] = efetivos_df['NIF'].str.strip()  # Remover espaços extras
-            efetivos_nome_map = dict(zip(efetivos_df['CPF'], efetivos_df['Nome']))
-            efetivos_nif_map = dict(zip(efetivos_df['CPF'], efetivos_df['NIF']))
-
-            # Adicionar colunas de nome e NIF dos professores ao DataFrame de aulas eventuais
-            aulas_df['Nome Professor Eventual'] = aulas_df['CPF Professor Eventual'].map(eventuais_map).str.strip()
-            aulas_df['Nome Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nome_map).str.strip()
-            aulas_df['NIF Professor Efetivo'] = aulas_df['CPF Professor Efetivo'].map(efetivos_nif_map).str.strip()
-
-            # Aplicar filtro baseado no campo de pesquisa com correspondência exata
-            if query:
-                query = query.strip().lower()  # Remover espaços extras e garantir que tudo esteja em minúsculas
-                aulas_df = aulas_df[
-                    (aulas_df['Nome Professor Eventual'].str.lower().str.contains(f'^{query}$')) |  # Comparação exata
-                    (aulas_df['Nome Professor Efetivo'].str.lower().str.contains(f'^{query}$')) |  # Comparação exata
-                    (aulas_df['Data da Aula'].str.contains(query, case=False))  # Permitir busca parcial na data
-                ]
-
-            # Atualizar a tabela com os dados filtrados
-            self.table.setRowCount(aulas_df.shape[0])
-            self.table.setColumnCount(aulas_df.shape[1])
-            self.table.setHorizontalHeaderLabels(aulas_df.columns)
-
-            for i, row in aulas_df.iterrows():
-                for j, val in enumerate(row):
-                    self.table.setItem(i, j, QTableWidgetItem(str(val)))
-
-        except Exception as e:
-            print(f"Erro ao filtrar os dados: {e}")
-
-
-
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Sistema de Cadastro")
+
+        # Layout principal
+        layout = QtWidgets.QVBoxLayout()
+
+        # Botões para ações
+        self.btn_eventuais = QtWidgets.QPushButton('Cadastro de Eventuais')
+        self.btn_eventuais.clicked.connect(self.cadastro_eventuais)
+        layout.addWidget(self.btn_eventuais)
+
+        self.btn_efetivos = QtWidgets.QPushButton('Cadastro de Professores Efetivos')
+        self.btn_efetivos.clicked.connect(self.cadastro_efetivos)
+        layout.addWidget(self.btn_efetivos)
+
+        self.btn_aulas_eventuais = QtWidgets.QPushButton('Cadastro de Aulas Eventuais')
+        self.btn_aulas_eventuais.clicked.connect(self.cadastro_aulas_eventuais)
+        layout.addWidget(self.btn_aulas_eventuais)
+
+        self.btn_listar_eventuais = QtWidgets.QPushButton('Listar Professores Eventuais')
+        self.btn_listar_eventuais.clicked.connect(self.listar_eventuais)
+        layout.addWidget(self.btn_listar_eventuais)
+
+        self.btn_listar_efetivos = QtWidgets.QPushButton('Listar Professores Efetivos')
+        self.btn_listar_efetivos.clicked.connect(self.listar_efetivos)
+        layout.addWidget(self.btn_listar_efetivos)
+
+        self.btn_listar_aulas = QtWidgets.QPushButton('Listar Aulas Eventuais')
+        self.btn_listar_aulas.clicked.connect(self.listar_aulas_eventuais)
+        layout.addWidget(self.btn_listar_aulas)
+
+        self.btn_sair = QtWidgets.QPushButton('Sair')
+        self.btn_sair.clicked.connect(self.close)
+        layout.addWidget(self.btn_sair)
+
+        self.setLayout(layout)
+
+    def cadastro_eventuais(self):
+        self.window_eventuais = QtWidgets.QDialog()
+        self.window_eventuais.setWindowTitle("Cadastro de Eventuais")
+
+        layout = QtWidgets.QVBoxLayout()
+        self.entry_nome_eventuais = QtWidgets.QLineEdit()
+        self.entry_cpf_eventuais = QtWidgets.QLineEdit()
+        self.entry_conta_eventuais = QtWidgets.QLineEdit()
+        self.entry_agencia_eventuais = QtWidgets.QLineEdit()
+        self.entry_banco_eventuais = QtWidgets.QLineEdit()
+
+        layout.addWidget(QtWidgets.QLabel('Nome'))
+        layout.addWidget(self.entry_nome_eventuais)
+        layout.addWidget(QtWidgets.QLabel('CPF'))
+        layout.addWidget(self.entry_cpf_eventuais)
+        layout.addWidget(QtWidgets.QLabel('Conta'))
+        layout.addWidget(self.entry_conta_eventuais)
+        layout.addWidget(QtWidgets.QLabel('Agência'))
+        layout.addWidget(self.entry_agencia_eventuais)
+        layout.addWidget(QtWidgets.QLabel('Banco'))
+        layout.addWidget(self.entry_banco_eventuais)
+
+        btn_salvar = QtWidgets.QPushButton('Salvar')
+        btn_salvar.clicked.connect(self.salvar_eventuais)
+        layout.addWidget(btn_salvar)
+
+        self.window_eventuais.setLayout(layout)
+        self.window_eventuais.exec_()
+
+    def salvar_eventuais(self):
+        nome = self.entry_nome_eventuais.text()
+        cpf = self.entry_cpf_eventuais.text()
+        conta = self.entry_conta_eventuais.text()
+        agencia = self.entry_agencia_eventuais.text()
+        banco = self.entry_banco_eventuais.text()
+
+        eventuais_ref.push({
+            'nome': nome,
+            'cpf': cpf,
+            'conta': conta,
+            'agencia': agencia,
+            'banco': banco
+        })
+        QtWidgets.QMessageBox.information(self, 'Sucesso', 'Cadastro salvo com sucesso!')
+        self.window_eventuais.close()
+
+    def cadastro_efetivos(self):
+        self.window_efetivos = QtWidgets.QDialog()
+        self.window_efetivos.setWindowTitle("Cadastro de Professores Efetivos")
+
+        layout = QtWidgets.QVBoxLayout()
+        self.entry_nome_efetivos = QtWidgets.QLineEdit()
+        self.entry_cpf_efetivos = QtWidgets.QLineEdit()
+        self.entry_nif_efetivos = QtWidgets.QLineEdit()
+        self.entry_especialidade_efetivos = QtWidgets.QLineEdit()
+
+        layout.addWidget(QtWidgets.QLabel('Nome'))
+        layout.addWidget(self.entry_nome_efetivos)
+        layout.addWidget(QtWidgets.QLabel('CPF'))
+        layout.addWidget(self.entry_cpf_efetivos)
+        layout.addWidget(QtWidgets.QLabel('NIF'))
+        layout.addWidget(self.entry_nif_efetivos)
+        layout.addWidget(QtWidgets.QLabel('Especialidade'))
+        layout.addWidget(self.entry_especialidade_efetivos)
+
+        btn_salvar = QtWidgets.QPushButton('Salvar')
+        btn_salvar.clicked.connect(self.salvar_efetivos)
+        layout.addWidget(btn_salvar)
+
+        self.window_efetivos.setLayout(layout)
+        self.window_efetivos.exec_()
+
+    def salvar_efetivos(self):
+        nome = self.entry_nome_efetivos.text()
+        cpf = self.entry_cpf_efetivos.text()
+        nif = self.entry_nif_efetivos.text()
+        especialidade = self.entry_especialidade_efetivos.text()
+
+        efetivos_ref.push({
+            'nome': nome,
+            'cpf': cpf,
+            'nif': nif,
+            'especialidade': especialidade
+        })
+        QtWidgets.QMessageBox.information(self, 'Sucesso', 'Cadastro salvo com sucesso!')
+        self.window_efetivos.close()
+
+    def cadastro_aulas_eventuais(self):
+        self.window_aulas_eventuais = QtWidgets.QDialog()
+        self.window_aulas_eventuais.setWindowTitle("Cadastro de Aulas Eventuais")
+
+        layout = QtWidgets.QVBoxLayout()
+
+        # ComboBox para professores eventuais
+        self.combo_prof_eventual = QtWidgets.QComboBox()
+        self.combo_prof_eventual.addItems(self.carregar_eventuais())
+        layout.addWidget(QtWidgets.QLabel('Professor Eventual'))
+        layout.addWidget(self.combo_prof_eventual)
+
+        # ComboBox para professores efetivos
+        self.combo_prof_efetivo = QtWidgets.QComboBox()
+        self.combo_prof_efetivo.addItems(self.carregar_efetivos())
+        layout.addWidget(QtWidgets.QLabel('Professor Efetivo'))
+        layout.addWidget(self.combo_prof_efetivo)
+
+        self.entry_dia_aula = QtWidgets.QLineEdit()  # Novo campo para o dia da aula
+        self.entry_horario_entrada = QtWidgets.QLineEdit()
+        self.entry_horario_saida = QtWidgets.QLineEdit()
+        self.entry_qtd_aulas = QtWidgets.QLineEdit()
+        self.entry_observacoes = QtWidgets.QLineEdit()
+
+        layout.addWidget(QtWidgets.QLabel('Dia da Aula'))  # Label para o dia da aula
+        layout.addWidget(self.entry_dia_aula)  # Campo para o dia da aula
+        layout.addWidget(QtWidgets.QLabel('Horário de Entrada'))
+        layout.addWidget(self.entry_horario_entrada)
+        layout.addWidget(QtWidgets.QLabel('Horário de Saída'))
+        layout.addWidget(self.entry_horario_saida)
+        layout.addWidget(QtWidgets.QLabel('Quantidade de Aulas'))
+        layout.addWidget(self.entry_qtd_aulas)
+        layout.addWidget(QtWidgets.QLabel('Observações'))
+        layout.addWidget(self.entry_observacoes)
+
+        btn_salvar = QtWidgets.QPushButton('Salvar')
+        btn_salvar.clicked.connect(self.salvar_aulas_eventuais)
+        layout.addWidget(btn_salvar)
+
+        self.window_aulas_eventuais.setLayout(layout)
+        self.window_aulas_eventuais.exec_()
+
+    def carregar_eventuais(self):
+        """Carregar os nomes dos professores eventuais do Firebase."""
+        eventuais = eventuais_ref.get()
+        if isinstance(eventuais, dict):
+            return [event['nome'] for event in eventuais.values()]
+        return []
+
+    def carregar_efetivos(self):
+        """Carregar os nomes dos professores efetivos do Firebase."""
+        efetivos = efetivos_ref.get()
+        if isinstance(efetivos, dict):
+            return [efetivo['nome'] for efetivo in efetivos.values()]
+        return []
+
+    def salvar_aulas_eventuais(self):
+        prof_eventual = self.combo_prof_eventual.currentText()
+        prof_efetivo = self.combo_prof_efetivo.currentText()
+        dia_aula = self.entry_dia_aula.text()  # Novo campo dia da aula
+        horario_entrada = self.entry_horario_entrada.text()
+        horario_saida = self.entry_horario_saida.text()
+        qtd_aulas = self.entry_qtd_aulas.text()
+        observacoes = self.entry_observacoes.text()
+
+        aulas_eventuais_ref.push({
+            'prof_eventual': prof_eventual,
+            'prof_efetivo': prof_efetivo,
+            'dia_aula': dia_aula,  # Salvar o dia da aula
+            'horario_entrada': horario_entrada,
+            'horario_saida': horario_saida,
+            'qtd_aulas': qtd_aulas,
+            'observacoes': observacoes
+        })
+        QtWidgets.QMessageBox.information(self, 'Sucesso', 'Cadastro de aula eventual salvo com sucesso!')
+        self.window_aulas_eventuais.close()
+
+    def listar_eventuais(self):
+        self.window_listar_eventuais = QtWidgets.QDialog()
+        self.window_listar_eventuais.setWindowTitle("Listagem de Professores Eventuais")
+        self.window_listar_eventuais.setMinimumSize(800, 600)  # Tamanho mínimo
+        self.window_listar_eventuais.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
+
+        layout = QtWidgets.QVBoxLayout()
+        self.table_eventuais = QtWidgets.QTableWidget()
+        self.table_eventuais.setColumnCount(5)
+        self.table_eventuais.setHorizontalHeaderLabels(['Nome', 'CPF', 'Conta', 'Agência', 'Banco'])
+        layout.addWidget(self.table_eventuais)
+
+        eventuais = eventuais_ref.get()  # Pega todos os eventuais do Firebase
+        self.table_eventuais.setRowCount(0)
+
+        if isinstance(eventuais, dict):
+            for key, event in eventuais.items():
+                row_position = self.table_eventuais.rowCount()
+                self.table_eventuais.insertRow(row_position)
+                nome = event.get('nome', 'Nome não disponível')
+                cpf = event.get('cpf', 'CPF não disponível')
+                conta = event.get('conta', 'Conta não disponível')
+                agencia = event.get('agencia', 'Agência não disponível')
+                banco = event.get('banco', 'Banco não disponível')
+
+                self.table_eventuais.setItem(row_position, 0, QtWidgets.QTableWidgetItem(nome))
+                self.table_eventuais.setItem(row_position, 1, QtWidgets.QTableWidgetItem(cpf))
+                self.table_eventuais.setItem(row_position, 2, QtWidgets.QTableWidgetItem(conta))
+                self.table_eventuais.setItem(row_position, 3, QtWidgets.QTableWidgetItem(agencia))
+                self.table_eventuais.setItem(row_position, 4, QtWidgets.QTableWidgetItem(banco))
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
+        btn_fechar = QtWidgets.QPushButton('Fechar')
+        btn_fechar.clicked.connect(self.window_listar_eventuais.close)
+        layout.addWidget(btn_fechar)
+
+        self.window_listar_eventuais.setLayout(layout)
+        self.window_listar_eventuais.exec_()
+
+    def listar_efetivos(self):
+        self.window_listar_efetivos = QtWidgets.QDialog()
+        self.window_listar_efetivos.setWindowTitle("Listagem de Professores Efetivos")
+        self.window_listar_efetivos.setMinimumSize(800, 600)  # Tamanho mínimo
+        self.window_listar_efetivos.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
+
+        layout = QtWidgets.QVBoxLayout()
+        self.table_efetivos = QtWidgets.QTableWidget()
+        self.table_efetivos.setColumnCount(4)
+        self.table_efetivos.setHorizontalHeaderLabels(['Nome', 'NIF', 'CPF', 'Especialidade'])
+        layout.addWidget(self.table_efetivos)
+
+        efetivos = efetivos_ref.get()  # Pega todos os efetivos do Firebase
+        self.table_efetivos.setRowCount(0)
+
+        if isinstance(efetivos, dict):
+            for key, efetivo in efetivos.items():
+                row_position = self.table_efetivos.rowCount()
+                self.table_efetivos.insertRow(row_position)
+                nome = efetivo.get('nome', 'Nome não disponível')
+                cpf = efetivo.get('cpf', 'CPF não disponível')
+                nif = efetivo.get('nif', 'NIF não disponível')
+                especialidade = efetivo.get('especialidade', 'Especialidade não disponível')
+
+                self.table_efetivos.setItem(row_position, 0, QtWidgets.QTableWidgetItem(nome))
+                self.table_efetivos.setItem(row_position, 1, QtWidgets.QTableWidgetItem(nif))  # Incluindo NIF
+                self.table_efetivos.setItem(row_position, 2, QtWidgets.QTableWidgetItem(cpf))
+                self.table_efetivos.setItem(row_position, 3, QtWidgets.QTableWidgetItem(especialidade))
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
+        btn_fechar = QtWidgets.QPushButton('Fechar')
+        btn_fechar.clicked.connect(self.window_listar_efetivos.close)
+        layout.addWidget(btn_fechar)
+
+        self.window_listar_efetivos.setLayout(layout)
+        self.window_listar_efetivos.exec_()
+
+    def listar_aulas_eventuais(self):
+        self.window_listar_aulas = QtWidgets.QDialog()
+        self.window_listar_aulas.setWindowTitle("Listagem de Aulas Eventuais")
+        self.window_listar_aulas.setMinimumSize(800, 600)  # Tamanho mínimo
+        self.window_listar_aulas.setWindowState(Qt.WindowMaximized)  # Iniciar maximizado
+
+        layout = QtWidgets.QVBoxLayout()
+        self.table_aulas = QtWidgets.QTableWidget()
+        self.table_aulas.setColumnCount(7)  # Adicionar coluna para o NIF
+        self.table_aulas.setHorizontalHeaderLabels(['Professor Eventual', 'NIF Efetivo', 'Professor Efetivo', 'Dia da Aula', 'Horário Entrada', 'Horário Saída', 'Observações'])
+        layout.addWidget(self.table_aulas)
+
+        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
+        self.table_aulas.setRowCount(0)
+
+        if isinstance(aulas, dict):
+            for key, aula in aulas.items():
+                row_position = self.table_aulas.rowCount()
+                self.table_aulas.insertRow(row_position)
+                prof_eventual = aula.get('prof_eventual', 'Professor eventual não disponível')
+                prof_efetivo = aula.get('prof_efetivo', 'Professor efetivo não disponível')
+                dia_aula = aula.get('dia_aula', 'Dia da aula não disponível')
+                horario_entrada = aula.get('horario_entrada', 'Horário de entrada não disponível')
+                horario_saida = aula.get('horario_saida', 'Horário de saída não disponível')
+                qtd_aulas = aula.get('qtd_aulas', 'Quantidade não disponível')
+                observacoes = aula.get('observacoes', 'Observações não disponíveis')
+
+                # Obter o NIF do professor efetivo
+                nif_efetivo = self.get_nif_professor_efetivo(prof_efetivo)
+
+                self.table_aulas.setItem(row_position, 0, QtWidgets.QTableWidgetItem(prof_eventual))
+                self.table_aulas.setItem(row_position, 1, QtWidgets.QTableWidgetItem(nif_efetivo))  # Exibir NIF
+                self.table_aulas.setItem(row_position, 2, QtWidgets.QTableWidgetItem(prof_efetivo))
+                self.table_aulas.setItem(row_position, 3, QtWidgets.QTableWidgetItem(dia_aula))
+                self.table_aulas.setItem(row_position, 4, QtWidgets.QTableWidgetItem(horario_entrada))
+                self.table_aulas.setItem(row_position, 5, QtWidgets.QTableWidgetItem(horario_saida))
+                self.table_aulas.setItem(row_position, 6, QtWidgets.QTableWidgetItem(observacoes))
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
+        btn_fechar = QtWidgets.QPushButton('Fechar')
+        btn_fechar.clicked.connect(self.window_listar_aulas.close)
+        layout.addWidget(btn_fechar)
+
+        self.window_listar_aulas.setLayout(layout)
+        self.window_listar_aulas.exec_()
+
+    def get_nif_professor_efetivo(self, nome_prof_efetivo):
+        """Retorna o NIF do professor efetivo dado seu nome."""
+        efetivos = efetivos_ref.get()
+        if isinstance(efetivos, dict):
+            for efetivo in efetivos.values():
+                if efetivo['nome'] == nome_prof_efetivo:
+                    return efetivo.get('nif', 'NIF não disponível')
+        return 'NIF não encontrado'
+
+if __name__ == '__main__':
+    app = QtWidgets.QApplication(sys.argv)
+    window = CadastroApp()
     window.show()
     sys.exit(app.exec_())
