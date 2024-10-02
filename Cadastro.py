@@ -309,8 +309,9 @@ class CadastroApp(QtWidgets.QWidget):
         layout.addWidget(self.search_bar)
 
         self.table_aulas = QtWidgets.QTableWidget()
-        self.table_aulas.setColumnCount(7)  # Adicionar coluna para o NIF
-        self.table_aulas.setHorizontalHeaderLabels(['Professor Eventual', 'NIF Efetivo', 'Professor Efetivo', 'Dia da Aula', 'Horário Entrada', 'Horário Saída', 'Observações'])
+        self.table_aulas.setColumnCount(8)  # Adicionar coluna para o NIF
+        self.table_aulas.setHorizontalHeaderLabels(['Professor Eventual', 'NIF Efetivo', 'Professor Efetivo', 'Dia da Aula', 'Horário Entrada', 'Horário Saída', 'Observações','Excluir '])
+
         layout.addWidget(self.table_aulas)
 
         self.carregar_aulas_eventuais()  # Carrega inicialmente as aulas
@@ -322,21 +323,11 @@ class CadastroApp(QtWidgets.QWidget):
         self.window_listar_aulas.setLayout(layout)
         self.window_listar_aulas.exec_()
 
-    def carregar_aulas_eventuais(self):
-        """Carrega as aulas eventuais do Firebase na tabela."""
-        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
-        self.table_aulas.setRowCount(0)  # Limpa a tabela
-
-        if isinstance(aulas, dict):
-            for key, aula in aulas.items():
-                self.adicionar_linha_aula(aula)
-        else:
-            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
-
-    def adicionar_linha_aula(self, aula):
-        """Adiciona uma linha na tabela de aulas."""
+    def adicionar_linha_aula(self, aula_key, aula):
+        """Adiciona uma linha na tabela de aulas com um botão de excluir."""
         row_position = self.table_aulas.rowCount()
         self.table_aulas.insertRow(row_position)
+        
         prof_eventual = aula.get('prof_eventual', 'Professor eventual não disponível')
         prof_efetivo = aula.get('prof_efetivo', 'Professor efetivo não disponível')
         dia_aula = aula.get('dia_aula', 'Dia da aula não disponível')
@@ -355,6 +346,38 @@ class CadastroApp(QtWidgets.QWidget):
         self.table_aulas.setItem(row_position, 5, QtWidgets.QTableWidgetItem(horario_saida))
         self.table_aulas.setItem(row_position, 6, QtWidgets.QTableWidgetItem(observacoes))
 
+        # Adicionar botão de excluir
+        btn_excluir = QtWidgets.QPushButton('Excluir')
+        btn_excluir.clicked.connect(lambda: self.excluir_aula_eventual(aula_key, row_position))
+        self.table_aulas.setCellWidget(row_position, 7, btn_excluir)  # Colocar o botão na última coluna
+
+# Adicione a função excluir_aula_eventual:
+
+    def excluir_aula_eventual(self, aula_key, row_position):
+        """Exclui uma aula eventual do Firebase e remove a linha da tabela."""
+        confirm = QtWidgets.QMessageBox.question(self, 'Confirmação', 'Tem certeza que deseja excluir esta aula?', QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        
+        if confirm == QtWidgets.QMessageBox.Yes:
+            # Excluir do Firebase
+            aulas_eventuais_ref.child(aula_key).delete()
+            
+            # Remover a linha da tabela
+            self.table_aulas.removeRow(row_position)
+            QtWidgets.QMessageBox.information(self, 'Sucesso', 'Aula excluída com sucesso!')
+
+# Modifique também a função carregar_aulas_eventuais para passar o key de cada aula:
+
+    def carregar_aulas_eventuais(self):
+        """Carrega as aulas eventuais do Firebase na tabela."""
+        aulas = aulas_eventuais_ref.get()  # Pega todas as aulas eventuais do Firebase
+        self.table_aulas.setRowCount(0)  # Limpa a tabela
+
+        if isinstance(aulas, dict):
+            for key, aula in aulas.items():
+                self.adicionar_linha_aula(key, aula)
+        else:
+            QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
     def filtrar_aulas(self):
         """Filtra as aulas baseando-se no texto da barra de pesquisa."""
         search_text = self.search_bar.text().lower()
@@ -366,9 +389,10 @@ class CadastroApp(QtWidgets.QWidget):
             for key, aula in aulas.items():
                 # Verifica se o nome do professor eventual ou efetivo contém o texto da pesquisa
                 if search_text in aula.get('prof_eventual', '').lower() or search_text in aula.get('prof_efetivo', '').lower():
-                    self.adicionar_linha_aula(aula)
+                    self.adicionar_linha_aula(key, aula)
         else:
             QtWidgets.QMessageBox.information(self, 'Info', "Nenhum registro encontrado.")
+
 
     def get_nif_professor_efetivo(self, nome_prof_efetivo):
         """Obtém o NIF do professor efetivo baseado no seu nome."""
